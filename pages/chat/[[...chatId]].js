@@ -9,12 +9,12 @@ import { Message } from "components/Message";
 export default function ChatPage() {
   const [incomingMessage, setIncomingMessage] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [newChatMessages, setNewChatMessages] = useState([]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    setIsGeneratingResponse(true)
     setNewChatMessages((prevState) => {
       const newChatMessages = [
         ...prevState,
@@ -26,6 +26,8 @@ export default function ChatPage() {
       ];
       return newChatMessages;
     });
+
+    setMessageText('')
 
     const response = await fetch("/api/chat/sendMessage", {
       method: "POST",
@@ -42,6 +44,7 @@ export default function ChatPage() {
     await streamReader(reader, (message) => {
       setIncomingMessage((s) => `${s}${message.content}`);
     });
+     setIsGeneratingResponse(false);
   };
   return (
     <>
@@ -65,13 +68,14 @@ export default function ChatPage() {
           </div>
           <footer className="bg-gray-800 p-10">
             <form onSubmit={handleSubmit}>
-              <fieldset className="flex gap-2">
+              <fieldset className="flex gap-2" disabled={isGeneratingResponse}>
                 <textarea
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   className="w-full resize-none rounded-md bg-gray-700 text-white
                 focus:border-emerald-500 focus:bg-gray-600 focus:outline-emerald-500"
-                  placeholder="Send a message..."
+                  placeholder={isGeneratingResponse
+                     ? '' : "Send a message..." }
                 />
                 <button className="btn" type="submit">
                   Send
