@@ -14,7 +14,7 @@ export default function ChatPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsGeneratingResponse(true)
+    setIsGeneratingResponse(true);
     setNewChatMessages((prevState) => {
       const newChatMessages = [
         ...prevState,
@@ -27,7 +27,7 @@ export default function ChatPage() {
       return newChatMessages;
     });
 
-    setMessageText('')
+    setMessageText("");
 
     const response = await fetch("/api/chat/sendMessage", {
       method: "POST",
@@ -42,9 +42,10 @@ export default function ChatPage() {
 
     const reader = data.getReader();
     await streamReader(reader, (message) => {
+      
       setIncomingMessage((s) => `${s}${message.content}`);
     });
-     setIsGeneratingResponse(false);
+    setIsGeneratingResponse(false);
   };
   return (
     <>

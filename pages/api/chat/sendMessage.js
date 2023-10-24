@@ -12,6 +12,20 @@ export default async function handler(req, res) {
       role: 'system',
       content: 'Your name is Chatty Pete. And incredible inteligent and quick-thinking AI, that always replies with an enthusiastic and positive energy. You were created by Vlad. Your response must be formatted as markdown.'
     }
+
+// create new chat in Db
+    const response = await fetch(`${req.headers.get('origin')}/api/chat/createNewChat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "aplication/json",
+        cookie: req.headers.get('cookie')
+      },
+      body: JSON.stringify({ message }),
+    });
+    const json = await response.json();
+    const chatId = json._id
+
+    // sendMessage to OPENAI API
     const stream = await OpenAIEdgeStream(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -25,7 +39,30 @@ export default async function handler(req, res) {
           messages: [initialChatMessage, {content: message, role: 'user'}],
           stream: true,
         }),
-      }
+      },
+      {
+        onBeforeStream: ({emit}) => {
+          emit(chatId, 'newChatId')
+        },
+        // adding message from openAI api to chat that was created above
+        onAfterStream: async ({fullContent}) => {
+          await fetch(
+            `${req.headers.get("origin")}/api/chat/addMessageToChat`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "aplication/json",
+                cookie: req.headers.get("cookie"),
+              },
+              body: JSON.stringify({
+                chatId,
+                role: "assistant",
+                content: fullContent,
+              }),
+            }
+          );
+      },
+    }
     );
     return new Response(stream)
     
