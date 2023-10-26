@@ -6,26 +6,50 @@ export const config = {
 
 export default async function handler(req, res) {
   try {
-    const { message } = await req.json();
+    const { message, chatId: chatIdFromParam } = await req.json();
+    let chatId = chatIdFromParam;
+    let newChatId = null;
 
     const initialChatMessage = {
-      role: 'system',
-      content: 'Your name is Chatty Pete. And incredible inteligent and quick-thinking AI, that always replies with an enthusiastic and positive energy. You were created by Vlad. Your response must be formatted as markdown.'
+      role: "system",
+      content:
+        "Your name is Chatty Pete. And incredible inteligent and quick-thinking AI, that always replies with an enthusiastic and positive energy. You were created by Vlad. Your response must be formatted as markdown.",
+    };
+    if (chatId) {
+      // added message in exist chat
+      const response = await fetch(
+        `${req.headers.get("origin")}/api/chat/addMessageToChat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "aplication/json",
+            cookie: req.headers.get("cookie"),
+          },
+          body: JSON.stringify({
+            chatId,
+            role: "user",
+            content: message,
+          }),
+        }
+      );
+    } else {
+      // create new chat in Db
+      const response = await fetch(
+        `${req.headers.get("origin")}/api/chat/createNewChat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "aplication/json",
+            cookie: req.headers.get("cookie"),
+          },
+          body: JSON.stringify({ message }),
+        }
+      );
+      const json = await response.json();
+      chatId = json._id;
+      newChatId = json._id;
     }
-
-// create new chat in Db
-    const response = await fetch(`${req.headers.get('origin')}/api/chat/createNewChat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "aplication/json",
-        cookie: req.headers.get('cookie')
-      },
-      body: JSON.stringify({ message }),
-    });
-    const json = await response.json();
-    const chatId = json._id
-
-    // sendMessage to OPENAI API
+    
     const stream = await OpenAIEdgeStream(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -36,16 +60,18 @@ export default async function handler(req, res) {
         method: "POST",
         body: JSON.stringify({
           model: "gpt-3.5-turbo",
-          messages: [initialChatMessage, {content: message, role: 'user'}],
+          messages: [initialChatMessage, { content: message, role: "user" }],
           stream: true,
         }),
       },
       {
-        onBeforeStream: ({emit}) => {
-          emit(chatId, 'newChatId')
+        onBeforeStream: ({ emit }) => {
+          if (newChatId) {
+            emit(chatId, "newChatId");
+          }
         },
         // adding message from openAI api to chat that was created above
-        onAfterStream: async ({fullContent}) => {
+        onAfterStream: async ({ fullContent }) => {
           await fetch(
             `${req.headers.get("origin")}/api/chat/addMessageToChat`,
             {
@@ -61,11 +87,10 @@ export default async function handler(req, res) {
               }),
             }
           );
-      },
-    }
+        },
+      }
     );
-    return new Response(stream)
-    
+    return new Response(stream);
   } catch (error) {
     console.log("error", error);
 
@@ -77,4 +102,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
