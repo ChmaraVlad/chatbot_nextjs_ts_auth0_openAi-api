@@ -149,11 +149,11 @@ export const getServerSideProps = async (ctx) => {
     return {
       props: {
         chatId,
-        title: chat.title,
-        messages: chat.messages.map(msg => ({
+        title: chat?.title || null,
+        messages: chat?.messages.map(msg => ({
           ...msg,
           _id: uuid()
-        }))
+        })) || []
       },
     };
   }

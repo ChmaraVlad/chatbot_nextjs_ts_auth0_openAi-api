@@ -9,6 +9,7 @@ export default async function handler(req, res) {
     const { message, chatId: chatIdFromParam } = await req.json();
     let chatId = chatIdFromParam;
     let newChatId = null;
+    let chatMessagesHistory = [];
 
     const initialChatMessage = {
       role: "system",
@@ -32,6 +33,9 @@ export default async function handler(req, res) {
           }),
         }
       );
+      const json = await response.json();
+
+      chatMessagesHistory = json.messages || [];
     } else {
       // create new chat in Db
       const response = await fetch(
@@ -46,10 +50,27 @@ export default async function handler(req, res) {
         }
       );
       const json = await response.json();
+
       chatId = json._id;
       newChatId = json._id;
+      chatMessagesHistory = json.messages || [];
     }
-    
+
+    // logic counting, saving and pass messages history
+    const messagesToInclude = [];
+    chatMessagesHistory.reverse();
+    let usedTokens = 0;
+    for (let chatMessage of chatMessagesHistory) {
+      const messageTokens = chatMessage.content?.length / 4;
+      usedTokens = usedTokens + messageTokens;
+      if (usedTokens <= 2000) {
+        messagesToInclude.push(chatMessage);
+      } else {
+        break;
+      }
+    }
+    messagesToInclude.reverse();
+
     const stream = await OpenAIEdgeStream(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -60,7 +81,7 @@ export default async function handler(req, res) {
         method: "POST",
         body: JSON.stringify({
           model: "gpt-3.5-turbo",
-          messages: [initialChatMessage, { content: message, role: "user" }],
+          messages: [initialChatMessage, ...messagesToInclude],
           stream: true,
         }),
       },
