@@ -1,16 +1,36 @@
 import Head from "next/head";
 import { streamReader } from "openai-edge-stream";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { v4 as uuid } from "uuid";
+import { useRouter } from "next/router";
+import { getSession } from "@auth0/nextjs-auth0";
+import clientPromise from "lib/mongodb";
+import { ObjectId } from "mongodb";
 
 import { ChatSidebar } from "components/ChatSidebar";
 import { Message } from "components/Message";
 
-export default function ChatPage() {
+
+export default function ChatPage({ chatId, title, messages=[] }) {
+  const [newChatId, setNewChatId] = useState(null);
   const [incomingMessage, setIncomingMessage] = useState("");
   const [messageText, setMessageText] = useState("");
   const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [newChatMessages, setNewChatMessages] = useState([]);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isGeneratingResponse && newChatId) {
+      router.push(`/chat/${newChatId}`);
+      setNewChatId(null);
+    }
+  }, [newChatId, isGeneratingResponse, router]);
+
+  useEffect(()=>{
+    setNewChatMessages('')
+    setNewChatId(null);
+  },[chatId])
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,21 +62,27 @@ export default function ChatPage() {
 
     const reader = data.getReader();
     await streamReader(reader, (message) => {
-      
-      setIncomingMessage((s) => `${s}${message.content}`);
+      if (message.event === "newChatId") {
+        setNewChatId(message.content);
+      } else {
+        setIncomingMessage((s) => `${s}${message.content}`);
+      }
     });
     setIsGeneratingResponse(false);
+    setIncomingMessage('')
   };
+
+  const allMessages = [...messages, ...newChatMessages]
   return (
     <>
       <Head>
         <title>New Chat</title>
       </Head>
       <div className="grid h-screen grid-cols-[260px_1fr] text-white">
-        <ChatSidebar />
-        <div className="flex flex-col bg-gray-700 overflow-hidden">
+        <ChatSidebar chatId={chatId} />
+        <div className="flex flex-col overflow-hidden bg-gray-700">
           <div className="flex-1 overflow-auto">
-            {newChatMessages.map((message) => (
+            {allMessages.map((message) => (
               <Message
                 key={message._id}
                 role={message.role}
@@ -75,8 +101,7 @@ export default function ChatPage() {
                   onChange={(e) => setMessageText(e.target.value)}
                   className="w-full resize-none rounded-md bg-gray-700 text-white
                 focus:border-emerald-500 focus:bg-gray-600 focus:outline-emerald-500"
-                  placeholder={isGeneratingResponse
-                     ? '' : "Send a message..." }
+                  placeholder={isGeneratingResponse ? "" : "Send a message..."}
                 />
                 <button className="btn" type="submit">
                   Send
@@ -89,3 +114,30 @@ export default function ChatPage() {
     </>
   );
 }
+
+export const getServerSideProps = async (ctx) => {
+  const chatId = ctx.params?.chatId?.[0] || null;
+  
+  if (chatId) {
+    const {user} = await getSession(ctx.req, ctx.res)
+    const client = await clientPromise
+    const db = client.db('ChattyPete')
+    const chat = await db.collection('chats').findOne({
+      userId: user.sub,
+      _id: new ObjectId(chatId)
+    })
+    return {
+      props: {
+        chatId,
+        title: chat.title,
+        messages: chat.messages.map(msg => ({
+          ...msg,
+          _id: uuid()
+        }))
+      },
+    };
+  }
+  return {
+    props: {},
+  };
+};
