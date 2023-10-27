@@ -10,6 +10,9 @@ import { ObjectId } from "mongodb";
 import { ChatSidebar } from "components/ChatSidebar";
 import { Message } from "components/Message";
 
+import { faRobot } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+
 export default function ChatPage({ chatId, title, messages = [] }) {
   const [newChatId, setNewChatId] = useState(null);
   const [incomingMessage, setIncomingMessage] = useState("");
@@ -98,6 +101,7 @@ export default function ChatPage({ chatId, title, messages = [] }) {
   };
 
   const allMessages = [...messages, ...newChatMessages];
+
   return (
     <>
       <Head>
@@ -107,26 +111,41 @@ export default function ChatPage({ chatId, title, messages = [] }) {
         <ChatSidebar chatId={chatId} />
         <div className="flex flex-col overflow-hidden bg-gray-700">
           <div className="flex flex-1 flex-col-reverse overflow-auto">
-            <div className="mb-auto">
-              {allMessages.map((message) => (
-                <Message
-                  key={message._id}
-                  role={message.role}
-                  content={message.content}
-                />
-              ))}
-              {incomingMessage && !routeHasChanged ? (
-                <Message role={"assistant"} content={incomingMessage} />
-              ) : null}
-              {incomingMessage && routeHasChanged ? (
-                <Message
-                  role={"warning"}
-                  content={
-                    "Only one message at a time. Please allow any other responses to complete before sending another message"
-                  }
-                />
-              ) : null}
-            </div>
+            {!allMessages.length && !incomingMessage && (
+              <div className="m-auto flex items-center justify-center text-center">
+                <div>
+                  <FontAwesomeIcon
+                    icon={faRobot}
+                    className="text-6xl text-emerald-200"
+                  />
+                  <h1 className="text-4xl font-bold text-white/50 mt-2">
+                    Ask me a question!
+                  </h1>
+                </div>
+              </div>
+            )}
+            {!!allMessages.length && (
+              <div className="mb-auto">
+                {allMessages.map((message) => (
+                  <Message
+                    key={message._id}
+                    role={message.role}
+                    content={message.content}
+                  />
+                ))}
+                {incomingMessage && !routeHasChanged ? (
+                  <Message role={"assistant"} content={incomingMessage} />
+                ) : null}
+                {incomingMessage && routeHasChanged ? (
+                  <Message
+                    role={"warning"}
+                    content={
+                      "Only one message at a time. Please allow any other responses to complete before sending another message"
+                    }
+                  />
+                ) : null}
+              </div>
+            )}
           </div>
           <footer className="bg-gray-800 p-10">
             <form onSubmit={handleSubmit}>

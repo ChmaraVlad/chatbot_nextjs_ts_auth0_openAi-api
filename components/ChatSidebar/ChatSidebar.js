@@ -39,7 +39,7 @@ export const ChatSidebar = ({ chatId }) => {
             href={`/chat/${chat._id}`}
             key={chat._id}
           >
-            <FontAwesomeIcon icon={faMessage} />
+            <FontAwesomeIcon icon={faMessage}  className="text-white/50"/>
             <span
             title={chat.title}
             className="overflow-hidden text-ellipsis whitespace-nowrap"
