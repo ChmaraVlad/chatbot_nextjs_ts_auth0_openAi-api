@@ -10,14 +10,17 @@ import { ObjectId } from "mongodb";
 import { ChatSidebar } from "components/ChatSidebar";
 import { Message } from "components/Message";
 
-
-export default function ChatPage({ chatId, title, messages=[] }) {
+export default function ChatPage({ chatId, title, messages = [] }) {
   const [newChatId, setNewChatId] = useState(null);
   const [incomingMessage, setIncomingMessage] = useState("");
   const [messageText, setMessageText] = useState("");
   const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [newChatMessages, setNewChatMessages] = useState([]);
   const [fullMessage, setFullMessage] = useState("");
+
+  const [originChatId, setOriginChatId] = useState(chatId);
+
+  const routeHasChanged = chatId !== originChatId;
 
   const router = useRouter();
 
@@ -28,16 +31,16 @@ export default function ChatPage({ chatId, title, messages=[] }) {
       setNewChatId(null);
     }
   }, [newChatId, isGeneratingResponse, router]);
-  
+
   // when uor route changes
-  useEffect(()=>{
-    setNewChatMessages('')
+  useEffect(() => {
+    setNewChatMessages("");
     setNewChatId(null);
-  },[chatId])
+  }, [chatId]);
 
   // save the newly streamed message to new chat message
   useEffect(() => {
-    if (!isGeneratingResponse && fullMessage) {
+    if (!routeHasChanged && !isGeneratingResponse && fullMessage) {
       setNewChatMessages((prev) => [
         ...prev,
         {
@@ -47,11 +50,13 @@ export default function ChatPage({ chatId, title, messages=[] }) {
         },
       ]);
     }
-  }, [isGeneratingResponse, fullMessage]);
+  }, [isGeneratingResponse, fullMessage, routeHasChanged]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsGeneratingResponse(true);
+    setOriginChatId(chatId);
+
     setNewChatMessages((prevState) => {
       const newChatMessages = [
         ...prevState,
@@ -65,7 +70,7 @@ export default function ChatPage({ chatId, title, messages=[] }) {
     });
 
     setMessageText("");
-    let content = ''
+    let content = "";
 
     const response = await fetch("/api/chat/sendMessage", {
       method: "POST",
@@ -84,15 +89,15 @@ export default function ChatPage({ chatId, title, messages=[] }) {
         setNewChatId(message.content);
       } else {
         setIncomingMessage((s) => `${s}${message.content}`);
-        content = content + message.content
+        content = content + message.content;
       }
     });
     setIsGeneratingResponse(false);
-    setIncomingMessage('')
-    setFullMessage(content)
+    setIncomingMessage("");
+    setFullMessage(content);
   };
 
-  const allMessages = [...messages, ...newChatMessages]
+  const allMessages = [...messages, ...newChatMessages];
   return (
     <>
       <Head>
@@ -101,17 +106,27 @@ export default function ChatPage({ chatId, title, messages=[] }) {
       <div className="grid h-screen grid-cols-[260px_1fr] text-white">
         <ChatSidebar chatId={chatId} />
         <div className="flex flex-col overflow-hidden bg-gray-700">
-          <div className="flex-1 overflow-auto">
-            {allMessages.map((message) => (
-              <Message
-                key={message._id}
-                role={message.role}
-                content={message.content}
-              />
-            ))}
-            {incomingMessage ? (
-              <Message role={"assistant"} content={incomingMessage} />
-            ) : null}
+          <div className="flex flex-1 flex-col-reverse overflow-auto">
+            <div className="mb-auto">
+              {allMessages.map((message) => (
+                <Message
+                  key={message._id}
+                  role={message.role}
+                  content={message.content}
+                />
+              ))}
+              {incomingMessage && !routeHasChanged ? (
+                <Message role={"assistant"} content={incomingMessage} />
+              ) : null}
+              {incomingMessage && routeHasChanged ? (
+                <Message
+                  role={"warning"}
+                  content={
+                    "Only one message at a time. Please allow any other responses to complete before sending another message"
+                  }
+                />
+              ) : null}
+            </div>
           </div>
           <footer className="bg-gray-800 p-10">
             <form onSubmit={handleSubmit}>
@@ -137,23 +152,24 @@ export default function ChatPage({ chatId, title, messages=[] }) {
 
 export const getServerSideProps = async (ctx) => {
   const chatId = ctx.params?.chatId?.[0] || null;
-  
+
   if (chatId) {
-    const {user} = await getSession(ctx.req, ctx.res)
-    const client = await clientPromise
-    const db = client.db('ChattyPete')
-    const chat = await db.collection('chats').findOne({
+    const { user } = await getSession(ctx.req, ctx.res);
+    const client = await clientPromise;
+    const db = client.db("ChattyPete");
+    const chat = await db.collection("chats").findOne({
       userId: user.sub,
-      _id: new ObjectId(chatId)
-    })
+      _id: new ObjectId(chatId),
+    });
     return {
       props: {
         chatId,
         title: chat?.title || null,
-        messages: chat?.messages.map(msg => ({
-          ...msg,
-          _id: uuid()
-        })) || []
+        messages:
+          chat?.messages.map((msg) => ({
+            ...msg,
+            _id: uuid(),
+          })) || [],
       },
     };
   }
